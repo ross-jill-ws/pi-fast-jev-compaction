@@ -42,6 +42,6 @@
     "extensions": [
       "extensions/index.ts"
     ],
-    "video": "https://github.com/ross-jill-ws/pi-fast-jev-compaction/blob/main/assets/pi-jev-compact.mp4?raw=true"
+    "image": "https://github.com/ross-jill-ws/pi-fast-jev-compaction/blob/main/assets/pi-jev-compact.gif?raw=true"
   }
 }
