@@ -1,0 +1,28 @@
+{
+  "name": "pi-jev-compact",
+  "version": "0.1.0",
+  "description": "Quick session compaction for pi via the jev (typesafe) API. Adds the /compact-jev command.",
+  "author": "Ross Z",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "compaction",
+    "compact",
+    "jev",
+    "typesafe"
+  ],
+  "files": [
+    "extensions",
+    "package.json",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "extensions/index.ts"
+    ]
+  }
+}
