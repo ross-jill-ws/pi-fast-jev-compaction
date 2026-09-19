@@ -25,6 +25,7 @@
     "fast-jev-compaction"
   ],
   "files": [
+    "assets",
     "extensions",
     "references",
     "package.json",
@@ -40,6 +41,7 @@
   "pi": {
     "extensions": [
       "extensions/index.ts"
-    ]
+    ],
+    "video": "https://github.com/ross-jill-ws/pi-fast-jev-compaction/blob/main/assets/pi-jev-compact.mp4?raw=true"
   }
 }

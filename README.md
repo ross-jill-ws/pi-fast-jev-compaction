@@ -8,6 +8,8 @@ prompts and the core implementation are theirs (MIT); this package adapts them t
 compaction pipeline, adds chained re-pruning, a debugging mode and benchmarks. See
 [Credits](#credits).
 
+▶️ [Watch `/compact-jev` compact a pi session in under a second](assets/pi-jev-compact.mp4)
+
 ## Why
 
 pi's built-in `/compact` asks an LLM to rewrite old turns into a summary. That takes 15 to 50
