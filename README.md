@@ -8,7 +8,9 @@ prompts and the core implementation are theirs (MIT); this package adapts them t
 compaction pipeline, adds chained re-pruning, a debugging mode and benchmarks. See
 [Credits](#credits).
 
-▶️ [Watch `/compact-jev` compact a pi session in under a second](assets/pi-jev-compact.mp4)
+![`/compact-jev` compacting a pi session in under a second](assets/pi-jev-compact.gif)
+
+[Open the MP4 demo](assets/pi-jev-compact.mp4?raw=true)
 
 ## Why
 
