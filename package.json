@@ -1,22 +1,39 @@
 {
-  "name": "pi-jev-compact",
-  "version": "0.1.0",
-  "description": "Quick session compaction for pi via the jev (typesafe) API. Adds the /compact-jev command.",
+  "name": "@rossz/pi-fast-jev-compaction",
+  "version": "0.2.0",
+  "description": "Fast, verbatim, jev-guided compaction for pi: keeps old user and assistant text as is and lets TypeSafe's jev model decide which tool calls and outputs to drop. A pi version inspired by the fast-jev-compaction Claude Code plugin.",
   "author": "Ross Z",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ross-jill-ws/pi-fast-jev-compaction.git"
+  },
+  "homepage": "https://github.com/ross-jill-ws/pi-fast-jev-compaction#readme",
+  "bugs": {
+    "url": "https://github.com/ross-jill-ws/pi-fast-jev-compaction/issues"
+  },
   "keywords": [
     "pi-package",
+    "pi",
     "compaction",
     "compact",
+    "context",
     "jev",
-    "typesafe"
+    "typesafe",
+    "verbatim",
+    "fast-jev-compaction"
   ],
   "files": [
     "extensions",
+    "references",
     "package.json",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
+  "scripts": {
+    "test": "node --test tests/*.test.ts"
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   },
