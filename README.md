@@ -43,14 +43,14 @@ Full numbers: [references/benchmarks.md](references/benchmarks.md).
 ## Install
 
 ```bash
-pi install npm:@rossz/pi-fast-jev-compaction
+pi install npm:pi-fast-jev-compaction
 ```
 
 Or straight from GitHub, or try it without installing:
 
 ```bash
 pi install git:github.com/ross-jill-ws/pi-fast-jev-compaction
-pi -e npm:@rossz/pi-fast-jev-compaction
+pi -e npm:pi-fast-jev-compaction
 ```
 
 For local development, point pi at the checkout:
