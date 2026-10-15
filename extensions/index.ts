@@ -20,13 +20,15 @@
  *                                          comparison bundle, leaves the session as is.
  *                                          Only registered when PI_JEV_COMPACT_DEBUG=1.
  *
- * Environment: see config.ts. TYPESAFE_API_KEY is required; PI_JEV_COMPACT_DEBUG=1
- * writes a bundle per compaction and computes pi's default summary for comparison.
- * That comparison never sits on the critical path: /compact-jev returns as soon as
- * jev has answered (about a second) and the default summary finishes in the
- * background, updating the bundle when done; only /compact-jev-compare waits for
- * it. PI_JEV_COMPACT_AUTO=1 routes pi's own /compact and auto-compaction through
- * jev as well.
+ * Environment: see config.ts. OPENROUTER_API_KEY selects OpenRouter's Decisions API
+ * and forces zero data retention; otherwise TYPESAFE_API_KEY selects System One.
+ * PI_JEV_COMPACT_DEBUG=1 writes a bundle per compaction and computes pi's default
+ * summary for comparison. That comparison never sits on the critical path:
+ * /compact-jev returns as soon as jev has answered (about a second) and the default
+ * summary finishes in the background, updating the bundle when done; only
+ * /compact-jev-compare waits for it. /compact and automatic compaction use jev unless
+ * PI_JEV_COMPACT_AUTO=0. PI_JEV_COMPACT_TIMEOUT_MS (default 60000) bounds a hung call;
+ * a timeout uses pi's summary and does not cancel the compaction.
  *
  * Chained compactions: the pruned messages are stored in the compaction entry's
  * `details`, so the next compaction re-evaluates them together with the new
@@ -45,7 +47,7 @@ import type {
 import { convertToLlm, estimateTokens, generateSummary, getLatestCompactionEntry } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
 import { actionsFrom, applyActions, contentText, fileOperations, messagesChars, normalizeMessages, toJevMessages } from "./adapter.ts";
-import { API_KEY_ENV, DEBUG_DEFAULT_ENV, type JevCompactConfig, loadConfig } from "./config.ts";
+import { API_KEY_ENV, DEBUG_DEFAULT_ENV, type JevCompactConfig, loadConfig, OPENROUTER_API_KEY_ENV } from "./config.ts";
 import { type Bundle, buildReport, createBundle, decisionLines, type DefaultSummaryInfo, type SizeRow, stamp, type TimingInfo } from "./debug.ts";
 import { buildGoal } from "./goal.ts";
 import { JevClient } from "./jev/client.ts";
@@ -62,6 +64,8 @@ export const COMPARE_COMMAND_NAME = "compact-jev-compare";
  */
 export const DETAILS_KIND = "pi-jev-compact";
 export { API_KEY_ENV };
+
+const KEY_ENVS = `${OPENROUTER_API_KEY_ENV} or ${API_KEY_ENV}`;
 
 type NotifyLevel = "info" | "warning" | "error";
 type Mode = "apply" | "dry-run";
@@ -236,7 +240,7 @@ export default function (pi: ExtensionAPI) {
 
   const status = (ctx: ExtensionContext) => {
     if (!ctx.hasUI) return;
-    const bits = [config.apiKey ? "jev ✓" : `jev: no ${API_KEY_ENV}`];
+    const bits = [config.apiKey ? "jev ✓" : `jev: no ${KEY_ENVS}`];
     if (config.debug) bits.push("debug");
     if (config.auto) bits.push("auto");
     ctx.ui.setStatus("jev-compact", bits.join(" "));
@@ -246,7 +250,7 @@ export default function (pi: ExtensionAPI) {
 
   const trigger = (ctx: ExtensionCommandContext, request: PendingRequest, instructions: string | undefined) => {
     if (!config.apiKey) {
-      say(ctx, `/${COMMAND_NAME}: ${API_KEY_ENV} is not set`, "error");
+      say(ctx, `/${COMMAND_NAME}: ${KEY_ENVS} is not set`, "error");
       return;
     }
     if (!ctx.model) {
@@ -274,7 +278,7 @@ export default function (pi: ExtensionAPI) {
   };
 
   pi.registerCommand(COMMAND_NAME, {
-    description: `Compact the session via jev: verbatim history minus stale tool output (requires ${API_KEY_ENV}). Usage: /${COMMAND_NAME} [force] [instructions]`,
+    description: `Compact the session via jev: verbatim history minus stale tool output (requires ${KEY_ENVS}). Usage: /${COMMAND_NAME} [force] [instructions]`,
     handler: async (args, ctx) => {
       const { force, instructions } = parseArgs(args);
       trigger(ctx, { mode: "apply", force, startedAt: Date.now() }, instructions);
@@ -298,8 +302,8 @@ export default function (pi: ExtensionAPI) {
     pending = undefined;
     if (!request && !config.auto) return undefined; // pi's default compaction
     const active: PendingRequest = request ?? { mode: "apply", force: false, startedAt: Date.now() };
-    if (!config.apiKey) {
-      say(ctx, `jev compaction skipped: ${API_KEY_ENV} is not set; using pi's default`, "warning");
+    if (!config.apiKey || !config.transport) {
+      say(ctx, `jev compaction skipped: ${KEY_ENVS} is not set; using pi's default`, "warning");
       return active.mode === "dry-run" ? { cancel: true } : undefined;
     }
     return runJev(event, ctx, active);
@@ -360,8 +364,10 @@ export default function (pi: ExtensionAPI) {
 
     // 2. Run jev and, when comparing, pi's default summary concurrently. Only the dry run
     //    waits for the default summary; after /compact-jev it finishes in the background.
-    const client = new JevClient({ apiKey: config.apiKey, model: config.model });
+    const client = new JevClient({ apiKey: config.apiKey, transport: config.transport, model: config.model });
     const prepMs = Date.now() - hookStart;
+    const deadline = AbortSignal.timeout(config.timeoutMs);
+    const jevSignal = AbortSignal.any([signal, deadline]);
     const jevPromise = jevCompact(
       toJevMessages(candidates),
       client,
@@ -372,8 +378,9 @@ export default function (pi: ExtensionAPI) {
         maxStateTokens: config.maxStateTokens,
         maxRequestTokens: config.maxRequestTokens,
         truncateHeadChars: config.truncateHeadChars,
+        transport: config.transport,
       },
-      signal,
+      jevSignal,
     );
     const backgroundAbort = new AbortController();
     const defaultPromise = wantDefault
@@ -478,6 +485,9 @@ export default function (pi: ExtensionAPI) {
     } else if (request.mode === "dry-run") {
       outcome = { applied: false, summary: "dry run; session left unchanged" };
       result = { cancel: true };
+    } else if (deadline.aborted) {
+      outcome = { applied: false, summary: "jev timed out; pi's summary is used" };
+      result = undefined;
     } else if (jevError) {
       outcome = { applied: false, summary: `jev failed (${jevError}); pi's default compaction used` };
       result = undefined;

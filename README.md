@@ -63,11 +63,14 @@ pi -e /path/to/pi-fast-jev-compaction/extensions/index.ts
 ### Requirements
 
 - pi 0.84 or newer.
-- A TypeSafe API key in `TYPESAFE_API_KEY`. Without it `/compact-jev` refuses to run and pi's
-  default compaction is unaffected.
+- `OPENROUTER_API_KEY`. Compaction then uses OpenRouter's Decisions API, and every request
+  sends `provider: { "zdr": true, "data_collection": "deny" }`. That block is not a setting.
+  If OpenRouter cannot route to a zero-retention endpoint, the call fails and pi's summary is used.
+- `TYPESAFE_API_KEY`, only when `OPENROUTER_API_KEY` is unset. That path posts to TypeSafe
+  System One and does not send a provider block. With neither key set, pi's summary runs.
 
 ```bash
-export TYPESAFE_API_KEY="$(cat ~/.typesafe/<your-key-file>)"
+export OPENROUTER_API_KEY="<your key>"
 ```
 
 ## Usage
@@ -81,8 +84,11 @@ export TYPESAFE_API_KEY="$(cat ~/.typesafe/<your-key-file>)"
 Instructions are passed to jev as part of its goal and to pi's summarizer as custom
 instructions.
 
-Plain `/compact` and automatic compaction keep using pi's default unless
-`PI_JEV_COMPACT_AUTO=1`.
+`/compact`, threshold compaction, and overflow compaction use jev.
+`PI_JEV_COMPACT_AUTO=0` (also `false`, `no`, or `off`) leaves those on pi's summary.
+A Jev call that exceeds `PI_JEV_COMPACT_TIMEOUT_MS` (default 60000) uses pi's summary
+and does not cancel the compaction. Cancelling stays reserved for an aborted compaction
+and for the debug dry run.
 
 Every run tells you where the time went:
 
@@ -98,13 +104,15 @@ Everything is an environment variable.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `TYPESAFE_API_KEY` | | TypeSafe key (required) |
+| `OPENROUTER_API_KEY` | | OpenRouter key. When it is set, it wins over `TYPESAFE_API_KEY` |
+| `TYPESAFE_API_KEY` | | TypeSafe System One key, used only when `OPENROUTER_API_KEY` is unset |
 | `PI_JEV_COMPACT_KEEP_THRESHOLD` | `0.5` | Minimum jev probability for a call or result to stay. Lower keeps more tool output and frees less |
 | `PI_JEV_COMPACT_MIN_REDUCTION` | `0.25` | Minimum reduction of the replaced context to apply the jev result; below it pi's default runs |
 | `PI_JEV_COMPACT_TRUNCATE_HEAD` | `300` | Characters kept of a truncated tool result |
 | `PI_JEV_COMPACT_PIN_RECENT` | `0` | Newest candidate messages never touched (pi already keeps its recent window) |
-| `PI_JEV_COMPACT_AUTO` | off | Route pi's own `/compact` and automatic compaction through jev too |
-| `PI_JEV_COMPACT_MODEL` | `jev-latest` | jev model |
+| `PI_JEV_COMPACT_AUTO` | on | `0`, `false`, `no`, or `off` leaves `/compact` and automatic compaction on pi's summary |
+| `PI_JEV_COMPACT_TIMEOUT_MS` | `60000` | Deadline for the Jev calls in one compaction. On timeout pi's summary runs |
+| `PI_JEV_COMPACT_MODEL` | `jev-latest` | On OpenRouter, unset and `jev-latest` send `typesafe/jev-1.14`. A value containing `/` is sent unchanged. Any other bare `jev-*` is sent as `typesafe/<name>`. Any other name is sent unchanged. System One sends the value as given |
 | `PI_JEV_COMPACT_MAX_STATE_TOKENS` | `25000` | jev state budget |
 | `PI_JEV_COMPACT_MAX_REQUEST_TOKENS` | `30000` | jev request budget (state plus one batch of questions) |
 | `PI_JEV_COMPACT_DEBUG` | off | Debug mode: bundles, background comparison with pi's default summary, `/compact-jev-compare` |
@@ -168,7 +176,7 @@ Details, the bundle layout and how to read a report: [references/debug-mode.md](
 4. Decisions are applied to pi's messages; the transcript is rendered without truncating kept
    results, with pi-style `<read-files>` / `<modified-files>` lists covering everything replaced.
 5. The compaction is returned to pi, or nothing is returned and pi's default runs when jev
-   failed or the reduction is below the minimum.
+   failed, timed out, or the reduction is below the minimum.
 
 The full walk-through and a comparison with the Claude Code plugin:
 [references/how-it-works.md](references/how-it-works.md).

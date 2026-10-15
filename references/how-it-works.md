@@ -71,7 +71,7 @@ of the transcript explains that it is verbatim history with some tool output rem
 
 | | fast-jev-compaction (Claude Code) | pi-fast-jev-compaction |
 |---|---|---|
-| Trigger | `turn.complete` hook requests compaction at `compactAtPercent` of context, and a `session.compact` hook replaces the summary | `/compact-jev`, or pi's own `/compact` and threshold compaction when `PI_JEV_COMPACT_AUTO=1` |
+| Trigger | `turn.complete` hook requests compaction at `compactAtPercent` of context, and a `session.compact` hook replaces the summary | `/compact`, threshold compaction, overflow compaction, and `/compact-jev`. `PI_JEV_COMPACT_AUTO=0` leaves pi's own compaction on pi's summary |
 | Recent window | `preserveRecentMessages` pins the newest 6 messages | pi keeps `keepRecentTokens` verbatim itself; `PI_JEV_COMPACT_PIN_RECENT` defaults to 0 |
 | Chained compactions | Each compaction sees the current messages | Pruned messages are stored in the compaction entry and re-pruned next time, so summaries do not stack |
 | Previous LLM summary | n/a | Carried verbatim under its own heading |

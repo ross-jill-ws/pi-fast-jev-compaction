@@ -3,6 +3,9 @@
 
 export type Role = 'user' | 'assistant';
 
+/** Host that receives a Jev request. `buildJevRequest` owns the URL and provider block. */
+export type JevTransport = 'openrouter' | 'typesafe';
+
 /**
  * A tool_use block of an assistant message. `text` and `isError` mirror the
  * outcome once the transcript holds it (Claude Code attaches them).
@@ -108,6 +111,8 @@ export interface CompactOptions {
   maxRequestTokens?: number;
   /** Characters of a dropped tool result to retain. Default 300. */
   truncateHeadChars?: number;
+  /** Selected host. Callers that omit it use System One's request overhead. */
+  transport?: JevTransport;
 }
 
 export interface ResolvedCompactOptions {

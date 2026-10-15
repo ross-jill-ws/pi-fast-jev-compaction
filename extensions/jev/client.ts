@@ -1,16 +1,16 @@
 // Vendored from fast-jev-compaction (MIT, https://github.com/tamaratran/fast-jev-compaction), src/client.ts.
 // pi changes: AbortSignal support so a cancelled compaction aborts in-flight Jev requests.
 
-import { buildJevRequest, parseJevResponse } from './request.ts';
+import { buildJevRequest, parseJevResponse, type JevTransport } from './request.ts';
 import type { JevAsker, JevQuestions, JevResponse, JevState } from './types.ts';
 
 export interface JevClientOptions {
-  /** Defaults to `process.env.TYPESAFE_API_KEY`. */
+  /** Key selected by `loadConfig`. This client does not read the environment. */
   apiKey?: string;
   /** Defaults to `jev-latest`. */
   model?: string;
-  /** Defaults to the System One endpoint. */
-  baseUrl?: string;
+  /** Selected by `loadConfig`. Callers that omit it stay on System One. */
+  transport?: JevTransport;
   /** Defaults to the global `fetch`. */
   fetch?: typeof fetch;
 }
@@ -19,20 +19,21 @@ export interface JevClientOptions {
 export class JevClient implements JevAsker {
   private readonly apiKey: string;
   private readonly model: string | undefined;
-  private readonly baseUrl: string | undefined;
+  private readonly transport: JevTransport;
   private readonly fetcher: typeof fetch;
 
   constructor(options: JevClientOptions = {}) {
-    this.apiKey = options.apiKey ?? process.env.TYPESAFE_API_KEY ?? '';
+    this.apiKey = options.apiKey ?? '';
     this.model = options.model;
-    this.baseUrl = options.baseUrl;
+    this.transport = options.transport ?? 'typesafe';
     this.fetcher = options.fetch ?? fetch;
   }
 
   async ask(state: JevState, questions: JevQuestions, signal?: AbortSignal): Promise<JevResponse> {
-    if (!this.apiKey) throw new Error('TYPESAFE_API_KEY is not configured');
+    if (!this.apiKey) throw new Error(`${this.transport} API key is not configured`);
     const request = buildJevRequest(
-      { apiKey: this.apiKey, model: this.model, baseUrl: this.baseUrl },
+      this.transport,
+      { apiKey: this.apiKey, model: this.model },
       state,
       questions,
     );

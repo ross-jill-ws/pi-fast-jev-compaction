@@ -1,10 +1,20 @@
 // Vendored from fast-jev-compaction (MIT, https://github.com/tamaratran/fast-jev-compaction), src/request.ts.
 // Adapted for pi: .ts import specifiers; see compact.ts/client.ts for the pi-specific changes.
 
-import type { JevAnswer, JevQuestions, JevResponse, JevState } from './types.ts';
+import type { JevAnswer, JevQuestions, JevResponse, JevState, JevTransport } from './types.ts';
+
+export type { JevTransport };
 
 export const SYSTEM_ONE_URL = 'https://api.typesafe.ai/v1/systemone';
+export const OPENROUTER_DECISIONS_URL = 'https://openrouter.ai/api/alpha/decisions';
 export const DEFAULT_MODEL = 'jev-latest';
+const OPENROUTER_PINNED_MODEL = 'typesafe/jev-1.14';
+
+/** Sent on every OpenRouter request. Frozen so a caller cannot clear either flag. */
+export const OPENROUTER_PROVIDER = Object.freeze({
+  zdr: true,
+  data_collection: 'deny' as const,
+});
 
 export interface JevRequest {
   url: string;
@@ -13,28 +23,42 @@ export interface JevRequest {
   body: string;
 }
 
-/** The HTTP request for one Jev call, for any fetch-like transport. */
+/** Tokens the request envelope adds around state and questions. */
+export function requestOverheadTokens(transport: JevTransport): number {
+  return transport === 'openrouter' ? 40 : 20;
+}
+
+function requestModel(transport: JevTransport, model: string | undefined): string {
+  if (transport !== 'openrouter') return model ?? DEFAULT_MODEL;
+  if (model === undefined || model === DEFAULT_MODEL) return OPENROUTER_PINNED_MODEL;
+  if (model.includes('/')) return model;
+  if (model.startsWith('jev-')) return `typesafe/${model}`;
+  return model;
+}
+
+/** The HTTP request for one Jev call. The transport picks the URL, model, and provider block. */
 export function buildJevRequest(
+  transport: JevTransport,
   params: {
     apiKey: string;
     model?: string;
-    baseUrl?: string;
   },
   state: JevState,
   questions: JevQuestions,
 ): JevRequest {
+  const model = requestModel(transport, params.model);
+  const payload =
+    transport === 'openrouter'
+      ? { model, provider: OPENROUTER_PROVIDER, state, questions }
+      : { model, state, questions };
   return {
-    url: params.baseUrl ?? SYSTEM_ONE_URL,
+    url: transport === 'openrouter' ? OPENROUTER_DECISIONS_URL : SYSTEM_ONE_URL,
     method: 'POST',
     headers: {
       authorization: `Bearer ${params.apiKey}`,
       'content-type': 'application/json',
     },
-    body: JSON.stringify({
-      model: params.model ?? DEFAULT_MODEL,
-      state,
-      questions,
-    }),
+    body: JSON.stringify(payload),
   };
 }
 

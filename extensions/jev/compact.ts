@@ -2,7 +2,7 @@
 // pi changes: AbortSignal threaded through to the asker, Jev usage accumulated,
 // the paired calls returned with the result, and the truncation note renamed.
 
-import { noulAnswer } from './request.ts';
+import { noulAnswer, requestOverheadTokens } from './request.ts';
 import { collectToolCalls, estimateTokens, fitState } from './state.ts';
 import type {
   CallAnswer,
@@ -26,9 +26,6 @@ export const DEFAULT_OPTIONS: ResolvedCompactOptions = {
   maxRequestTokens: 30_000,
   truncateHeadChars: 300,
 };
-
-/** Tokens the request envelope (`model`, key names) adds around state and questions. */
-const REQUEST_OVERHEAD_TOKENS = 20;
 
 function finite(value: number | undefined, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
@@ -78,8 +75,9 @@ export function batchCalls(
   calls: readonly ToolCall[],
   stateTokens: number,
   options: Pick<ResolvedCompactOptions, 'maxRequestTokens'>,
+  overheadTokens: number,
 ): ToolCall[][] {
-  const budget = options.maxRequestTokens - stateTokens - REQUEST_OVERHEAD_TOKENS;
+  const budget = options.maxRequestTokens - stateTokens - overheadTokens;
   const batches: ToolCall[][] = [];
   let current: ToolCall[] = [];
   let currentTokens = 0;
@@ -293,6 +291,7 @@ export async function compact(
 ): Promise<CompactRun> {
   const started = Date.now();
   const resolved = resolveOptions(options);
+  const overheadTokens = requestOverheadTokens(options.transport ?? 'typesafe');
   const calls = collectToolCalls(messages, resolved.preserveRecentMessages);
   const candidates = calls.filter((call) => !call.pinned);
   const charsBefore = messages.reduce((sum, message) => sum + messageChars(message), 0);
@@ -307,7 +306,7 @@ export async function compact(
     const state = fitState(messages, calls, resolved);
     fitted = state;
     trace.state = state.state;
-    batches = batchCalls(candidates, state.tokens, resolved);
+    batches = batchCalls(candidates, state.tokens, resolved, overheadTokens);
     const answered = await Promise.all(
       batches.map((batch) => askBatch(asker, state.state, batch, signal)),
     );
